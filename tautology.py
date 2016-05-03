@@ -1,7 +1,7 @@
 import re
 import numpy as np
 
-expression = '(a & (!b | b)) | (!a & (!b | b))'.strip()
+expression = '(a & (!b | b)) | (!a & (!b | b))'.replace(' ','')
 operands=len(set(re.findall("[a-zA-Z]+", expression)))
 
 point_topology=list(set(re.findall("[a-zA-Z]+", expression)))
@@ -60,21 +60,24 @@ class graph(object):
     def buildgraph(self,expression):
         operandmap=self.operandmap
         if len(expression)<3:
+            print expression
             self.data=expression
             self.left=1
             self.right=0
             return 0
         if (expression[0]!='!' and expression[0]!='(') or (expression[0]=='!' and expression[1]!='('):
-            if expression.index('&')>expression.index('|'):
-                breaker=expression.index('|')
-                self.data=graph(expression[0:breaker],operandmap)
-                self.right=graph(expression[breaker:],operandmap)
+            print expression
+            if (expression.find('&')<expression.find('|')) and expression.find('&')>0:
+                breaker=expression.find('&')
+                self.data=graph(expression[0:breaker-1],operandmap)
+                self.right=graph(expression[breaker+1:],operandmap)
             else:
                 print expression
-                breaker=expression.index('&')
-                self.data=graph(expression[0:breaker],operandmap)
-                self.left=graph(expression[breaker:],operandmap)
+                breaker=expression.find('|')
+                self.data=graph(expression[0:breaker-1],operandmap)
+                self.left=graph(expression[breaker+1:],operandmap)
         if expression[0]=='(':
+            print expression
             #get corresponding close if its equal to len rebuild internal graph or else bracket break
             closing=closure(expression,0)
             if closing==len(expression):
@@ -82,11 +85,12 @@ class graph(object):
             else:
                 if expression[closing]=='|':
                     self.data=graph(expression[0:closing],operandmap)
-                    self.right=graph(expression[closing:],operandmap)
+                    self.right=graph(expression[closing+1:],operandmap)
                 else:
                     self.data=graph(expression[0:closing],operandmap)
-                    self.left=graph(expression[closing:],operandmap)
+                    self.left=graph(expression[closing+1:],operandmap)
         if expression[0]=='!' and expression[1]=='(':
+            print expression
             #get corresponding close if its equal to len rebuild internal graph with a negation
             closing=closure(expression,1)
             if closing==len(expression):
@@ -95,10 +99,10 @@ class graph(object):
             else:
                 if expression[closing]=='|':
                     self.data=graph(expression[0:closing],operandmap)
-                    self.right=graph(expression[closing:],operandmap)
+                    self.right=graph(expression[closing+1:],operandmap)
                 else:
                     self.data=graph(expression[0:closing],operandmap)
-                    self.left=graph(expression[closing:],operandmap)
+                    self.left=graph(expression[closing+1:],operandmap)
 
     def evaluate(self):
         x=Or(And(self.data,self.left.data,self.operandmap),self.right,self.operandmap)
