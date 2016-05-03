@@ -13,7 +13,8 @@ for i in range(0,operands):
     topology=[x/2 for x in topology]
 
 duality=dict(zip(point_topology,dualspace))
-
+duality["0"]=np.array([0]*(2**(operands)))
+duality["1"]=1-duality["0"]
 print duality
 
 def closure(expression,pos):
@@ -23,94 +24,62 @@ def closure(expression,pos):
     basearray=np.subtract(ones,minus)
     return np.where(np.cumsum(basearray)==0)[0][0] + 1 +pos
 
-def Negation(a,operandmap):
-    if type(a)==type(''):
-        a=operandmap[a]
+def Negation(a):
     return 1-a
 
-def And(a,b,operandmap):
-    if a==1: return b
-    if b==1: return a
-    if a==0 or b==0: return 0
-    if type(a)==type(''):
-        a=operandmap[a]
-    if type(b)==type(''):
-        b=operandmap[b]
+def And(a,b):
     return a*b
 
-def Or(a,b,operandmap):
-    if type(a)==type(''):
-        a=operandmap[a]
-    if type(b)==type(''):
-        b=operandmap[b]
-    if a==0: return b
-    if b==0: return a
-    if a==1 or b==1: return 1
+def Or(a,b):
     return Negation(And(Negation(a),Negation(b)))
 
-class graph(object):
-    def __init__(self,expression,operandmap):
-        self.operandmap=operandmap
-        self.left=None
-        self.right=None
-        self.isNegation=False
-        self.data=None
-        self.buildgraph(expression)
+class atom(object):
+    def __init__(self,left,condition):
+        self.left=left
+        self.condition=condition
 
-    def buildgraph(self,expression):
-        operandmap=self.operandmap
-        if len(expression)<3:
-            print expression
-            self.data=expression
-            self.left=1
-            self.right=0
-            return 0
-        if (expression[0]!='!' and expression[0]!='(') or (expression[0]=='!' and expression[1]!='('):
-            print expression
-            if (expression.find('&')<expression.find('|')) and expression.find('&')>0:
-                breaker=expression.find('&')
-                self.data=graph(expression[0:breaker-1],operandmap)
-                self.right=graph(expression[breaker+1:],operandmap)
+def evaluate(expression):
+    stack=[]
+    remaining=''
+    if expression[0]!='(':
+        if expression[0]!='!':
+            if len(expression)==1:stack.append(atom(duality[expression[0]],-1))
             else:
-                print expression
-                breaker=expression.find('|')
-                self.data=graph(expression[0:breaker-1],operandmap)
-                self.left=graph(expression[breaker+1:],operandmap)
-        if expression[0]=='(':
-            print expression
-            #get corresponding close if its equal to len rebuild internal graph or else bracket break
-            closing=closure(expression,0)
-            if closing==len(expression):
-                self.buildgraph(expression[1:-1])
+                stack.append(atom(duality[expression[0]],expression[1]))
+                remaining=expression[2:]
+        elif expression[1]!='(':
+            if len(expression)==1:stack.append(atom(duality[expression[0]],-1))
             else:
-                if expression[closing]=='|':
-                    self.data=graph(expression[0:closing],operandmap)
-                    self.right=graph(expression[closing+1:],operandmap)
-                else:
-                    self.data=graph(expression[0:closing],operandmap)
-                    self.left=graph(expression[closing+1:],operandmap)
-        if expression[0]=='!' and expression[1]=='(':
-            print expression
-            #get corresponding close if its equal to len rebuild internal graph with a negation
-            closing=closure(expression,1)
-            if closing==len(expression):
-                buildgraph(expression[2:-1])
-                self.isNegation=True
-            else:
-                if expression[closing]=='|':
-                    self.data=graph(expression[0:closing],operandmap)
-                    self.right=graph(expression[closing+1:],operandmap)
-                else:
-                    self.data=graph(expression[0:closing],operandmap)
-                    self.left=graph(expression[closing+1:],operandmap)
-
-    def evaluate(self):
-        x=Or(And(self.data,self.left.data,self.operandmap),self.right,self.operandmap)
-        if self.isNegation:
-            return Negation(x,self.operandmap)
+                stack.append(atom(Negation(duality[expression[1]]),expression[2]))
+                remaining=expression[3:]
         else:
-            return x
+            pos=closure(expression,1)
+            if len(expression)==pos:stack.append(atom(Negation(evaluate(expression[2:pos-1]).left),-1))
+            else:
+                stack.append(atom(Negation(evaluate(expression[2:pos-1]).left),expression[pos]))
+            remaining=expression[pos+1:]
+    else:
+        pos=closure(expression,0)
+        if len(expression)==pos:stack.append(atom(Negation(evaluate(expression[1:pos-1]).left),-1))
+        else:
+            stack.append(atom(evaluate(expression[1:pos-1]).left,expression[pos]))
+        remaining=expression[pos+1:]
+    if remaining!='':
+        stack.append(evaluate(remaining))
+    if len(stack)==1: return stack[-1]
+    orstack=[]
+    i=0
+    while i<len(stack):
+        if stack[i].condition!='&':
+            orstack.append(stack[i])
+        else:
+            stack[i+1]=atom(And(stack[i].left,stack[i+1].left),stack[i+1].condition)
+        i=i+1
+    i=0
+    while orstack[i].condition!=-1 and i<len(orstack):
+        orstack[i+1]=atom(Or(orstack[i].left,orstack[i+1].left),orstack[i+1].condition)
+        i=i+1
 
-g=graph(expression,duality)
-g.evaluate()
-print g.data()
+    return orstack[-1]
+
+print evaluate(expression).left
