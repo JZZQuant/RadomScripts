@@ -2,6 +2,7 @@ import re
 import numpy as np
 
 expression = '(a & (!b | b)) | (!a & (!b | b))'.replace(' ','')
+expression = '(!b | b)'.replace(' ','')
 operands=len(set(re.findall("[a-zA-Z]+", expression)))
 
 point_topology=list(set(re.findall("[a-zA-Z]+", expression)))
@@ -31,55 +32,69 @@ def And(a,b):
     return a*b
 
 def Or(a,b):
-    return Negation(And(Negation(a),Negation(b)))
+    return 1-((2**(a+b))%2)
 
 class atom(object):
     def __init__(self,left,condition):
         self.left=left
         self.condition=condition
+        print "added to stack "+ str(self.left ) + "with condition "+ str(self.condition)
+
+def stackCollapse(stack,symbol,fun,isLastinEngine):
+    orstack=[]
+    i=0
+    while i+1<len(stack):
+        if stack[i].condition!=symbol:orstack.append(stack[i])
+        else:stack[i+1]=atom(fun(stack[i].left,stack[i+1].left),stack[i+1].condition)
+        i=i+1
+    if not isLastinEngine:
+        orstack.append(stack[-1])
+        return orstack
+    else: return stack
 
 def evaluate(expression):
     stack=[]
-    remaining=''
     if expression[0]!='(':
         if expression[0]!='!':
             if len(expression)==1:stack.append(atom(duality[expression[0]],-1))
             else:
                 stack.append(atom(duality[expression[0]],expression[1]))
-                remaining=expression[2:]
+                stack.append(evaluate(expression[2:]))
         elif expression[1]!='(':
             if len(expression)==1:stack.append(atom(duality[expression[0]],-1))
             else:
                 stack.append(atom(Negation(duality[expression[1]]),expression[2]))
-                remaining=expression[3:]
+                stack.append(evaluate(expression[3:]))
         else:
             pos=closure(expression,1)
             if len(expression)==pos:stack.append(atom(Negation(evaluate(expression[2:pos-1]).left),-1))
             else:
                 stack.append(atom(Negation(evaluate(expression[2:pos-1]).left),expression[pos]))
-            remaining=expression[pos+1:]
+                stack.append(evaluate(expression[pos+1:]))
     else:
         pos=closure(expression,0)
-        if len(expression)==pos:stack.append(atom(Negation(evaluate(expression[1:pos-1]).left),-1))
+        if len(expression)==pos:stack.append(atom(evaluate(expression[1:pos-1]).left,-1))
         else:
             stack.append(atom(evaluate(expression[1:pos-1]).left,expression[pos]))
-        remaining=expression[pos+1:]
-    if remaining!='':
-        stack.append(evaluate(remaining))
+            stack.append(evaluate(expression[pos+1:]))
     if len(stack)==1: return stack[-1]
-    orstack=[]
-    i=0
-    while i<len(stack):
-        if stack[i].condition!='&':
-            orstack.append(stack[i])
-        else:
-            stack[i+1]=atom(And(stack[i].left,stack[i+1].left),stack[i+1].condition)
-        i=i+1
-    i=0
-    while orstack[i].condition!=-1 and i<len(orstack):
-        orstack[i+1]=atom(Or(orstack[i].left,orstack[i+1].left),orstack[i+1].condition)
-        i=i+1
 
+    orstack=stackCollapse(stack,'&',And,False)
+    # orstack=[]
+    # i=0
+    # while i<len(stack):
+    #     if stack[i].condition!='&':
+    #         orstack.append(stack[i])
+    #     else:
+    #         stack[i+1]=atom(And(stack[i].left,stack[i+1].left),stack[i+1].condition)
+    #     i=i+1
+
+    orstack=stackCollapse(orstack,'|',Or,True)
+    # i=0
+    # while orstack[i].condition!=-1:
+    #     orstack[i+1]=atom(Or(orstack[i].left,orstack[i+1].left),orstack[i+1].condition)
+    #     i=i+1
+    #
     return orstack[-1]
 
 print evaluate(expression).left
