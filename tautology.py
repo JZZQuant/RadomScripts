@@ -80,21 +80,7 @@ def evaluate(expression):
     if len(stack)==1: return stack[-1]
 
     orstack=stackCollapse(stack,'&',And,False)
-    # orstack=[]
-    # i=0
-    # while i<len(stack):
-    #     if stack[i].condition!='&':
-    #         orstack.append(stack[i])
-    #     else:
-    #         stack[i+1]=atom(And(stack[i].left,stack[i+1].left),stack[i+1].condition)
-    #     i=i+1
-
     orstack=stackCollapse(orstack,'|',Or,True)
-    # i=0
-    # while orstack[i].condition!=-1:
-    #     orstack[i+1]=atom(Or(orstack[i].left,orstack[i+1].left),orstack[i+1].condition)
-    #     i=i+1
-    #
     return orstack[-1]
 
 print evaluate(expression).left
