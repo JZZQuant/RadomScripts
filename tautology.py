@@ -2,7 +2,8 @@ import re
 import numpy as np
 
 expression = '(a & (!b | b)) | (!a & (!b | b))'.replace(' ','')
-expression = '(!b | b)'.replace(' ','')
+#expression = '(!b | b)'.replace(' ','')
+#expression = '!(b & !b)'.replace(' ','')
 operands=len(set(re.findall("[a-zA-Z]+", expression)))
 
 point_topology=list(set(re.findall("[a-zA-Z]+", expression)))
@@ -35,17 +36,19 @@ def Or(a,b):
     return 1-((2**(a+b))%2)
 
 class atom(object):
-    def __init__(self,left,condition):
-        self.left=left
+    def __init__(self,left,condition,negate=0):
+        self.element=left
         self.condition=condition
-        print "added to stack "+ str(self.left ) + "with condition "+ str(self.condition)
+        if negate==1 :self.element=Negation(left)
+        print "added to stack "+ str(self.element ) + "with condition "+ str(self.condition)
 
+#lazy stack
 def stackCollapse(stack,symbol,fun,isLastinEngine):
     orstack=[]
     i=0
     while i+1<len(stack):
         if stack[i].condition!=symbol:orstack.append(stack[i])
-        else:stack[i+1]=atom(fun(stack[i].left,stack[i+1].left),stack[i+1].condition)
+        else:stack[i+1]=atom(fun(stack[i].element,stack[i+1].element),stack[i+1].condition)
         i=i+1
     if not isLastinEngine:
         orstack.append(stack[-1])
@@ -53,34 +56,22 @@ def stackCollapse(stack,symbol,fun,isLastinEngine):
     else: return stack
 
 def evaluate(expression):
-    stack=[]
-    if expression[0]!='(':
-        if expression[0]!='!':
-            if len(expression)==1:stack.append(atom(duality[expression[0]],-1))
-            else:
-                stack.append(atom(duality[expression[0]],expression[1]))
-                stack.append(evaluate(expression[2:]))
-        elif expression[1]!='(':
-            if len(expression)==1:stack.append(atom(duality[expression[0]],-1))
-            else:
-                stack.append(atom(Negation(duality[expression[1]]),expression[2]))
-                stack.append(evaluate(expression[3:]))
-        else:
-            pos=closure(expression,1)
-            if len(expression)==pos:stack.append(atom(Negation(evaluate(expression[2:pos-1]).left),-1))
-            else:
-                stack.append(atom(Negation(evaluate(expression[2:pos-1]).left),expression[pos]))
-                stack.append(evaluate(expression[pos+1:]))
+    fullstack=[]
+    if len(expression)<3:fullstack.append(atom(duality[expression[0]],-1,len(expression)-1))
     else:
-        pos=closure(expression,0)
-        if len(expression)==pos:stack.append(atom(evaluate(expression[1:pos-1]).left,-1))
+        left=expression.find("(")
+        if left not in [0,1]:
+            negate=int(expression[0]=='!')
+            fullstack.append(atom(duality[expression[0+negate]],expression[1+negate],negate))
+            fullstack.append(evaluate(expression[2+negate:]))
         else:
-            stack.append(atom(evaluate(expression[1:pos-1]).left,expression[pos]))
-            stack.append(evaluate(expression[pos+1:]))
-    if len(stack)==1: return stack[-1]
+            pos=closure(expression,left)
+            if len(expression)==pos:fullstack.append(atom(evaluate(expression[1+left:pos-1]).element,-1,left))
+            else:
+                fullstack.append(atom(evaluate(expression[1+left:pos-1]).element,expression[pos],left))
+                fullstack.append(evaluate(expression[pos+1:]))
 
-    orstack=stackCollapse(stack,'&',And,False)
-    orstack=stackCollapse(orstack,'|',Or,True)
-    return orstack[-1]
+    orstack=stackCollapse(fullstack,'&',And,False)
+    return stackCollapse(orstack,'|',Or,True)[-1]
 
-print evaluate(expression).left
+print evaluate(expression).element
